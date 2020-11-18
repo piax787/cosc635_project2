@@ -52,7 +52,7 @@ public class Sender {
     static byte[] checkIfLastPacket(byte[] totalBytes, int endIndex, int currentSeqNum) {
         byte[] num = new byte[2];
         num[0] = (byte) currentSeqNum;
-        if (totalBytes.length < endIndex) {
+        if (totalBytes.length == endIndex) {
             num[1] = (byte) -1;
         } else {
             num[1] = (byte) 0;
@@ -92,12 +92,12 @@ public class Sender {
         System.out.println(filepath.toString());
         //Convert entire file to bytes
         byte[] totalBytes = Files.readAllBytes(filepath);
-        //        byte[] totalBytes = Files.readAllBytes(Paths.get("COSC635_P2_DataSent.txt")); //convert entire file to bytes
+//        byte[] totalBytes = Files.readAllBytes(Paths.get("COSC635_P2_DataSent.txt")); //convert entire file to bytes
         try {//SETUP OF CONNECTION AND FILE
             DatagramSocket ds = new DatagramSocket();
             ds.setSoTimeout(3000); //arbitrary milliseconds
             if (Integer.toString(userNum).isEmpty()) {
-                userNum = packetLossSim();//user inputs number 0-99 
+                userNum = packetLossSim();//user inputs number 0-99
             }
             start = System.nanoTime(); //start the timer
             while (true) {//BEGIN SENDING DATA
@@ -142,7 +142,8 @@ public class Sender {
             }
         } finally {
             end = System.nanoTime(); //end the timer
-            System.out.println("Elapsed time: " + (end - start));
+            System.out.println("Elapsed time in nanoseconds: " + (end - start));
+            System.out.println("Elapsed time in seconds: " + (end - start) / 1000000);
             System.out.println("Goodbye!");
         }
     }

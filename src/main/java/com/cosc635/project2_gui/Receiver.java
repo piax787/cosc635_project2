@@ -14,7 +14,6 @@ import java.net.DatagramSocket;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import javafx.stage.Stage;
 
 public class Receiver {
 
@@ -63,7 +62,7 @@ public class Receiver {
                     ds.send(ack);
                     System.out.println("Sent ack for current SeqNum " + currentSeqNum);
 //                    System.out.println("currentMessageSet" + currentMessageSet);
-                    bos.write(currentMessageSet.getBytes());// We can add this later so we don't need to continue rewriting
+                    bos.write(currentMessageSet.getBytes());
                     if (lastPacket == -1) { // finished, so close connection
                         ds.close();
                         return;
@@ -75,7 +74,7 @@ public class Receiver {
                 currentMessageSet = "";
                 lastPacketReceived = goBackN(currentSeqNum);
             }
-            System.out.println("after round " + currentSeqNum + "currentMessageSet is " + currentMessageSet);
+//            System.out.println("after round "+ currentSeqNum +"currentMessageSet is " + currentMessageSet);
             buff.clear();
             buff.rewind(); //reset buffer
         }

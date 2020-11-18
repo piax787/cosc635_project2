@@ -247,7 +247,208 @@ RFC 3542             Advanced Sockets API for IPv6              May 2003
 
 Stevens, et al.              Informational                      [Page 6]
 
-RFC 3542             Advanced Sockets API for IPvcified by the application by
+RFC 3542             Advanced Sockets API for IPv6              May 2003
+
+
+   Berkeley-derived IPv4 implementations also define IPPROTO_IP to be 0.
+   This should not be a problem since IPPROTO_IP is used only with IPv4
+   sockets and IPPROTO_HOPOPTS only with IPv6 sockets.
+
+2.1.2.  IPv6 Extension Headers
+
+   Six extension headers are defined for IPv6.  We define structures for
+   all except the Authentication header and Encapsulating Security
+   Payload header, both of which are beyond the scope of this document.
+   The following structures are defined as a result of including
+   <netinet/ip6.h>.
+
+      /* Hop-by-Hop options header */
+      struct ip6_hbh {
+        uint8_t  ip6h_nxt;        /* next header */
+        uint8_t  ip6h_len;        /* length in units of 8 octets */
+          /* followed by options */
+      };
+
+      /* Destination options header */
+      struct ip6_dest {
+        uint8_t  ip6d_nxt;        /* next header */
+        uint8_t  ip6d_len;        /* length in units of 8 octets */
+          /* followed by options */
+      };
+
+      /* Routing header */
+      struct ip6_rthdr {
+        uint8_t  ip6r_nxt;        /* next header */
+        uint8_t  ip6r_len;        /* length in units of 8 octets */
+        uint8_t  ip6r_type;       /* routing type */
+        uint8_t  ip6r_segleft;    /* segments left */
+          /* followed by routing type specific data */
+      };
+
+      /* Type 0 Routing header */
+      struct ip6_rthdr0 {
+        uint8_t  ip6r0_nxt;       /* next header */
+        uint8_t  ip6r0_len;       /* length in units of 8 octets */
+        uint8_t  ip6r0_type;      /* always zero */
+        uint8_t  ip6r0_segleft;   /* segments left */
+        uint32_t ip6r0_reserved;  /* reserved field */
+          /* followed by up to 127 struct in6_addr */
+      };
+
+
+
+
+
+
+
+Stevens, et al.              Informational                      [Page 7]
+
+RFC 3542             Advanced Sockets API for IPv6              May 2003
+
+
+      /* Fragment header */
+      struct ip6_frag {
+        uint8_t   ip6f_nxt;       /* next header */
+        uint8_t   ip6f_reserved;  /* reserved field */
+        uint16_t  ip6f_offlg;     /* offset, reserved, and flag */
+        uint32_t  ip6f_ident;     /* identification */
+      };
+
+      #if     BYTE_ORDER == BIG_ENDIAN
+      #define IP6F_OFF_MASK       0xfff8  /* mask out offset from
+                                             ip6f_offlg */
+      #define IP6F_RESERVED_MASK  0x0006  /* reserved bits in
+                                             ip6f_offlg */
+      #define IP6F_MORE_FRAG      0x0001  /* more-fragments flag */
+      #else   /* BYTE_ORDER == LITTLE_ENDIAN */
+      #define IP6F_OFF_MASK       0xf8ff  /* mask out offset from
+                                             ip6f_offlg */
+      #define IP6F_RESERVED_MASK  0x0600  /* reserved bits in
+                                             ip6f_offlg */
+      #define IP6F_MORE_FRAG      0x0100  /* more-fragments flag */
+      #endif
+
+
+
+
+7.3.  inet6_rth_add
+
+      int inet6_rth_add(void *bp, const struct in6_addr *addr);
+
+   This function adds the IPv6 address pointed to by addr to the end of
+   the Routing header being constructed.
+
+   If successful, the segleft member of the Routing Header is updated to
+   account for the new address in the Routing header and the return
+   value of the function is 0.  Upon an error the return value of the
+   function is -1.
+
+7.4.  inet6_rth_reverse
+
+      int inet6_rth_reverse(const void *in, void *out);
+
+   This function takes a Routing header extension header (pointed to by
+   the first argument) and writes a new Routing header that sends
+   datagrams along the reverse of that route.  The function reverses the
+   order of the addresses and sets the segleft member in the new Routing
+   header to the number of segments.  Both arguments are allowed to
+   point to the same buffer (that is, the reversal can occur in place).
+
+   The return value of the function is 0 on success, or -1 upon an
+   error.
+
+7.5.  inet6_rth_segments
+
+      int inet6_rth_segments(const void *bp);
+
+   This function returns the number of segments (addresses) contained in
+   the Routing header described by bp.  On success the return value is
+   zero or greater.  The return value of the function is -1 upon an
+   error.
+
+7.6.  inet6_rth_getaddr
+
+      struct in6_addr *inet6_rth_getaddr(const void *bp, int index);
+
+   This function returns a pointer to the IPv6 address specified by
+   index (which must have a value between 0 and one less than the value
+   returned by inet6_rth_segments()) in the Routing header described by
+   bp.  An application should first call inet6_rth_segments() to obtain
+   the number of segments in the Routing header.
+
+   Upon an error the return value of the function is NULL.
+
+
+
+
+
+Stevens, et al.              Informational                     [Page 36]
+
+RFC 3542             Advanced Sockets API for IPv6              May 2003
+
+
+8.  Hop-By-Hop Options
+
+   A variable number of Hop-by-Hop options can appear in a single Hop-
+   by-Hop options header.  Each option in the header is TLV-encoded with
+   a type, length, and value.  This IPv6 API defines seven functions
+   that the application calls to build and examine a Hop-by_Hop options
+   header, and the ability to use sticky options or ancillary data to
+   communicate this information between the application and the kernel.
+   This uses the IPV6_HOPOPTS for a Hop-by-Hop options header.
+
+   Today several Hop-by-Hop options are defined for IPv6.  Two pad
+   options, Pad1 and PadN, are for alignment purposes and are
+   automatically inserted by the inet6_opt_XXX() routines and ignored by
+   the inet6_opt_XXX() routines on the receive side.  This section of
+   the API is therefore defined for other (and future) Hop-by-Hop
+   options that an application may need to specify and receive.
+
+   Four functions build an options header:
+
+      inet6_opt_init()     - initialize buffer data for options header
+      inet6_opt_append()   - add one TLV option to the options header
+      inet6_opt_finish()   - finish adding TLV options to the options
+                             header
+      inet6_opt_set_val()  - add one component of the option content to
+                             the option
+
+      Three functions deal with a returned options header:
+
+      inet6_opt_next()     - extract the next option from the options
+                             header
+      inet6_opt_find()     - extract an option of a specified type from
+                             the header
+      inet6_opt_get_val()  - retrieve one component of the option
+                             content
+
+   Individual Hop-by-Hop options (and Destination options, which are
+   described in Section 9 and are very similar to the Hop-by-Hop
+   options) may have specific alignment requirements.  For example, the
+   4-byte Jumbo Payload length should appear on a 4-byte boundary, and
+   IPv6 addresses are normally aligned on an 8-byte boundary.  These
+   requirements and the terminology used with these options are
+   discussed in Section 4.2 and Appendix B of [RFC-2460].  The alignment
+   of first byte of each option is specified by two values, called x and
+   y, written as "xn + y".  This states that the option must appear at
+   an integer multiple of x bytes from the beginning of the options
+   header (x can have the values 1, 2, 4, or 8), plus y bytes (y can
+   have a value between 0 and 7, inclusive).  The Pad1 and PadN options
+   are inserted as needed to maintain the required alignment.  The
+
+
+
+Stevens, et al.              Informational                     [Page 37]
+
+RFC 3542             Advanced Sockets API for IPv6              May 2003
+
+
+   functions below need to know the alignment of the end of the option
+   (which is always in the form "xn," where x can have the values 1, 2,
+   4, or 8) and the total size of the data portion of the option.  These
+   are passed as the "align" and "len" arguments to inet6_opt_append().
+
+   Multiple Hop-by-Hop options must be specified by the application by
    placing them in a single extension header.
 
    Finally, we note that use of some Hop-by-Hop options or some
@@ -3092,199 +3293,7 @@ RFC 3542             Advanced Sockets API for IPv6              May 2003
       will be put in the outgoing packet along with the header ordering
       described in [RFC-2460].
 
-   -  An ancillary data object or a sticky option of IPV6_RTHDRDSTOPTS
-      will affect the outgoing packet only when a Routing header is
-      specified as an ancillary data object or a sticky option.
-      Otherwise, the specified value for IPV6_RTHDRDSTOPTS will be
-      ignored.
-
-
-
-
-
-
-
-Stevens, et al.              Informational                     [Page 49]
-
-RFC 3542             Advanced Sockets API for IPv6              May 2003
-
-
-   For example, when an application sends a UDP datagram with a control
-   data buffer containing ancillary data objects in the following order:
-
-      an object with cmsg_type set to IPV6_DSTOPTS
-      an object with cmsg_type set to IPV6_RTHDRDSTOPTS
-      an object with cmsg_type set to IPV6_HOPOPTS
-
-   and the sending socket does not have any sticky options, then the
-   outgoing packet would be constructed as follows:
-
-      The IPv6 header
-      A Hop-by-Hop options header
-      A Destination options header
-      A UDP header and UDP data
-
-   where the destination options header corresponds to the ancillary
-   data object with the type IPV6_DSTOPTS.
-
-   Note that the constraints above do not necessarily mean that the
-   outgoing packet sent on the wire always follows the header ordering
-   specified in this API document.  The kernel may insert additional
-   headers that break the ordering as a result.  For example, if the
-   kernel supports Mobile IPv6, an additional destination options header
-   may be inserted before an authentication header, even without a
-   routing header.
-
-   This API does not provide access to any other extension headers than
-   the supported three types of headers.  In particular, no information
-   is provided about the IP security headers on an incoming packet, nor
-   can be specified for an outgoing packet.  This API is for
-   applications that do not care about the existence of IP security
-   headers.
-
-13.  IPv6-Specific Options with IPv4-Mapped IPv6 Addresses
-
-   The various socket options and ancillary data specifications defined
-   in this document apply only to true IPv6 sockets.  It is possible to
-   create an IPv6 socket that actually sends and receives IPv4 packets,
-   using IPv4-mapped IPv6 addresses, but the mapping of the options
-   defined in this document to an IPv4 datagram is beyond the scope of
-   this document.
-
-   In general, attempting to specify an IPv6-only option, such as the
-   Hop-by-Hop options, Destination options, or Routing header on an IPv6
-   socket that is using IPv4-mapped IPv6 addresses, will probably result
-   in an error.  Some implementations, however, may provide access to
-
-
-
-
-
-Stevens, et al.              Informational                     [Page 50]
-
-RFC 3542             Advanced Sockets API for IPv6              May 2003
-
-
-   the packet information (source/destination address, send/receive
-   interface, and hop limit) on an IPv6 socket that is using IPv4-mapped
-   IPv6 addresses.
-
-14.  Extended interfaces for rresvport, rcmd and rexec
-
-   Library functions that support the "r" commands hide the creation of
-   a socket and the name resolution procedure from an application.  When
-   the libraries return an AF_INET6 socket to an application that do not
-   support the address family, the application may encounter an
-   unexpected result when, e.g., calling getpeername() for the socket.
-   In order to support AF_INET6 sockets for the "r" commands while
-   keeping backward compatibility, this section defines some extensions
-   to the libraries.
-
-14.1.  rresvport_af
-
-   The rresvport() function is used by the rcmd() function, and this
-   function is in turn called by many of the "r" commands such as
-   rlogin.  While new applications are not being written to use the
-   rcmd() function, legacy applications such as rlogin will continue to
-   use it and these will be ported to IPv6.
-
-   rresvport() creates an IPv4/TCP socket and binds a "reserved port" to
-   the socket.  Instead of defining an IPv6 version of this function we
-   define a new function that takes an address family as its argument.
-
-      #include <unistd.h>
-
-      int  rresvport_af(int *port, int family);
-
-   This function behaves the same as the existing rresvport() function,
-   but instead of creating an AF_INET TCP socket, it can also create an
-   AF_INET6 TCP socket.  The family argument is either AF_INET or
-   AF_INET6, and a new error return is EAFNOSUPPORT if the address
-   family is not supported.
-
-   (Note: There is little consensus on which header defines the
-   rresvport() and rcmd() function prototypes.  4.4BSD defines it in
-   <unistd.h>, others in <netdb.h>, and others don't define the function
-   prototypes at all.)
-
-14.2.  rcmd_af
-
-   The existing rcmd() function can not transparently use AF_INET6
-   sockets since an application would not be prepared to handle AF_INET6
-   addresses returned by e.g., getpeername() on the file descriptor
-   created by rcmd().  Thus a new function is needed.
-
-
-
-Stevens, et al.              Informational                     [Page 51]
-
-RFC 3542             Advanced Sockets API for IPv6              May 2003
-
-
-      int rcmd_af(char **ahost, unsigned short rport,
-                  const char *locuser, const char *remuser,
-                  const char *cmd, int *fd2p, int af)
-
-   This function behaves the same as the existing rcmd() function, but
-   instead of creating an AF_INET TCP socket, it can also create an
-   AF_INET6 TCP socket.  The family argument is AF_INET, AF_INET6, or
-   AF_UNSPEC.  When either AF_INET or AF_INET6 is specified, this
-   function will create a socket of the specified address family.  When
-   AF_UNSPEC is specified, it will try all possible address families
-   until a connection can be established, and will return the associated
-   socket of the connection.  A new error EAFNOSUPPORT will be returned
-   if the address family is not supported.
-
-14.3.  rexec_af
-
-   The existing rexec() function can not transparently use AF_INET6
-   sockets since an application would not be prepared to handle AF_INET6
-   addresses returned by e.g., getpeername() on the file descriptor
-   created by rexec().  Thus a new function is needed.
-
-      int rexec_af(char **ahost, unsigned short rport, const char *name,
-                   const char *pass, const char *cmd, int *fd2p, int af)
-
-   This function behaves the same as the existing rexec() function, but
-   instead of creating an AF_INET TCP socket, it can also create an
-   AF_INET6 TCP socket.  The family argument is AF_INET, AF_INET6, or
-   AF_UNSPEC.  When either AF_INET or AF_INET6 is specified, this
-   function will create a socket of the specified address family.  When
-   AF_UNSPEC is specified, it will try all possible address families
-   until a connection can be established, and will return the associated
-   socket of the connection.  A new error EAFNOSUPPORT will be returned
-   if the address family is not supported.
-
-15.  Summary of New Definitions
-
-   The following list summarizes the constants and structure,
-   definitions discussed in this memo, sorted by header.
-
-      <netinet/icmp6.h> ICMP6_DST_UNREACH
-      <netinet/icmp6.h> ICMP6_DST_UNREACH_ADDR
-      <netinet/icmp6.h> ICMP6_DST_UNREACH_ADMIN
-      <netinet/icmp6.h> ICMP6_DST_UNREACH_BEYONDSCOPE
-      <netinet/icmp6.h> ICMP6_DST_UNREACH_NOPORT
-      <netinet/icmp6.h> ICMP6_DST_UNREACH_NOROUTE
-      <netinet/icmp6.h> ICMP6_ECHO_REPLY
-      <netinet/icmp6.h> ICMP6_ECHO_REQUEST
-      <netinet/icmp6.h> ICMP6_INFOMSG_MASK
-
-
-
-Stevens, et al.              Informational                     [Page 52]
-
-RFC 3542             Advanced Sockets API for IPv6              May 2003
-
-
-      <netinet/icmp6.h> ICMP6_PACKET_TOO_BIG
-      <netinet/icmp6.h> ICMP6_PARAMPROB_HEADER
-      <netinet/icmp6.h> ICMP6_PARAMPROB_NEXTHEADER
-      <netinet/icmp6.h> ICMP6_PARAMPROB_OPTION
-      <netinet/icmp6.h> ICMP6_PARAM_PROB
-      <netinet/icmp6.h> ICMP6_ROUTER_RENUMBERING
-      <netinet/icmp6.h> ICMP6_RR_FLAGS_FORCEAPPLY
-      <netinet/icmp6.h> ICMP6_RR_FLAGS_PREVDONE
+   -  An ancillary da
       <netinet/icmp6.h> ICMP6_RR_FLAGS_REQRESULT
       <netinet/icmp6.h> ICMP6_RR_FLAGS_SPECSITE
       <netinet/icmp6.h> ICMP6_RR_FLAGS_TEST
