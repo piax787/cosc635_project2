@@ -2,16 +2,13 @@ package com.cosc635.project2_gui;
 
 import java.io.IOException;
 import javafx.application.Application;
-import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.SingleSelectionModel;
 import javafx.scene.control.TextField;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
@@ -35,31 +32,32 @@ public class App extends Application {
         // Give information to user
         Label headingLabel = new Label("Error Control Program, JavaFX " + javafxVersion + ", running on Java " + javaVersion + ".");
         Label directionLabel = new Label("Please select the communication protocal and click to send or receive file");
+        Label randomDirectionLabel = new Label("GBN require number when sending and SAW requires when receiving");
         Label enterRandomNumLabel = new Label("Please enter a number from 0-99:");
-        
+
         // Give dropdown selection of protocol choices
         ChoiceBox protocolChoiceBox = new ChoiceBox();
         protocolChoiceBox.getItems().addAll("SAW Protocol", "GBN Protocol");
         protocolChoiceBox.getSelectionModel().select(0);
 
         // Random number text field
-        TextField randomInput = new TextField();
-        
+        TextField randomInput = new TextField("");
+
         // Action buttons to start receiving and sending files
         Button sendButton = new Button("Send File");
         Button receiveButton = new Button("Receive File");
         sendButton.setOnAction(e -> {
             protocolChoice = (String) protocolChoiceBox.getValue();
-            sendFile(protocolChoice, randomInput.getText());
+            sendFile(protocolChoice.split(" ")[0], randomInput.getText());
         });
         receiveButton.setOnAction(e -> {
             protocolChoice = (String) protocolChoiceBox.getValue();
-            receiveFile(protocolChoice);
+            receiveFile(protocolChoice.split(" ")[0], randomInput.getText());
         });
 
         VBox vBoxLayout = new VBox(10);
         vBoxLayout.setPadding(new Insets(20, 20, 20, 20));
-        vBoxLayout.getChildren().addAll(headingLabel, directionLabel, protocolChoiceBox, enterRandomNumLabel, randomInput, sendButton, receiveButton);
+        vBoxLayout.getChildren().addAll(headingLabel, directionLabel, protocolChoiceBox, randomDirectionLabel, enterRandomNumLabel, randomInput, sendButton, receiveButton);
 
         Scene mainScene = new Scene(vBoxLayout, 640, 480);
         window.setScene(mainScene);
@@ -72,22 +70,24 @@ public class App extends Application {
         } else {
             System.out.println("Sending file..." + "using " + protocolName);
             try {
-                Sender.start(randomNum);
+                Sender.start(protocolName, randomNum);
                 closeProgramAlert("Program is Finished");
             } catch (IOException ex) {
                 System.out.println("Unable to send file");
+                ex.printStackTrace();
+            } catch (Exception ex) {
                 ex.printStackTrace();
             }
         }
     }
 
-    public void receiveFile(String protocolName) {
+    public void receiveFile(String protocolName, String randomNum) {
         if (protocolName.isBlank()) {
             System.out.println("Please select communication protocol");
         } else {
             System.out.println("Receiving file..." + "using " + protocolName);
             try {
-                Receiver.start();
+                Receiver.start(protocolName, randomNum);
             } catch (IOException ex) {
                 System.out.println("Unable to recieve file");
                 ex.printStackTrace();
